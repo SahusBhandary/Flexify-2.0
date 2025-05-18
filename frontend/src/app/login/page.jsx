@@ -1,5 +1,7 @@
+'use client';
+
 import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import Link from 'next/link';
 import { 
   Box, 
   Typography, 
@@ -16,7 +18,7 @@ import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { alpha } from '@mui/material/styles';
 
-function Welcome() {
+export default function Login() {
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const [displayedText, setDisplayedText] = useState('');
   const [showAuthForm, setShowAuthForm] = useState(false);
@@ -215,7 +217,7 @@ function Welcome() {
                 <Typography variant="body2" color="text.secondary">
                   Already have an account?{' '}
                   <Link 
-                    to="/login"
+                    href="/login"
                     style={{
                       color: '#4285f4',
                       textDecoration: 'none'
@@ -232,5 +234,3 @@ function Welcome() {
     </Box>
   );
 }
-
-export default Welcome;
