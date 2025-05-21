@@ -3,6 +3,8 @@
 import './globals.css';
 import { ThemeProvider, CssBaseline } from '@mui/material';
 import { createTheme } from '@mui/material/styles';
+import GoogleOAuthWrapper from '@/components/GoogleOAuthWrapper';
+import { Google } from '@mui/icons-material';
 
 const theme = createTheme({
   palette: {
@@ -24,8 +26,10 @@ export default function RootLayout({ children }) {
       </head>
       <body>
         <ThemeProvider theme={theme}>
-          <CssBaseline />
-          {children}
+          <GoogleOAuthWrapper>
+            <CssBaseline />
+            {children}
+          </GoogleOAuthWrapper>
         </ThemeProvider>
       </body>
     </html>
