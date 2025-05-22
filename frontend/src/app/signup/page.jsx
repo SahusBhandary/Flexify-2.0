@@ -20,7 +20,8 @@ import GoogleIcon from '@mui/icons-material/Google';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
 import { alpha } from '@mui/material/styles';
-import { useGoogleLogin } from '@react-oauth/google'
+import { useGoogleLogin } from '@react-oauth/google';
+import { useRouter } from 'next/navigation';
 
 const roboto = Roboto({
   weight: ['300', '400', '500', '700'],
@@ -33,6 +34,7 @@ export default function SignUp() {
   const [displayedText, setDisplayedText] = useState('');
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const router = useRouter();
 
   // Create dark theme
   const darkTheme = createTheme({
@@ -90,13 +92,33 @@ export default function SignUp() {
 
   const handleGoogleButtonOnClick = useGoogleLogin({
     onSuccess: (tokenResponse) => {
-      fetch('/api/auth/google', {
+      console.log("Google OAuth success:", tokenResponse);
+      
+      fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/google/`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: tokenResponse.credential })
-      }).then()
+        body: JSON.stringify({ token: tokenResponse.access_token }) 
+      })
+      .then(response => {
+        if (!response.ok) {
+          throw new Error(`HTTP error! Status: ${response.status}`);
+        }
+        return response.json();
+      })
+      .then(data => {
+        localStorage.setItem('access_token', data.tokens.acess);
+        localStorage.setItem('refresh_token', data.tokens.refresh);
+
+        localStorage.setItem('user', JSON.stringify(data.user))
+        // TODO: Handle success
+        router.push('/');
+      })
+      .catch(error => {
+        console.error('Fetch error:', error);
+      });
     },
-    onError: () => console.error('Login Failed'),
+    onError: (error) => console.error('Login Failed:', error),
+    flow: 'implicit',
   });
 
   return (
@@ -169,6 +191,17 @@ export default function SignUp() {
                     sx: { borderRadius: 1.5 }
                   }}
                 />
+
+                <TextField
+                  fullWidth
+                  label="Email"
+                  variant="outlined"
+                  margin="normal"
+                  required
+                  InputProps={{
+                    sx: { borderRadius: 1.5 }
+                  }}
+                />
                 
                 <TextField
                   fullWidth
@@ -227,6 +260,7 @@ export default function SignUp() {
                 <Button
                   fullWidth
                   variant="outlined"
+                  onClick={handleGoogleButtonOnClick}
                   startIcon={<GoogleIcon />}
                   sx={{
                     color: '#e0e0e0',
