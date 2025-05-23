@@ -3,6 +3,7 @@ from rest_framework.response import Response
 from rest_framework.decorators import api_view, permission_classes
 from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.tokens import RefreshToken
+from django.db import models
 from django.contrib.auth.models import User
 from allauth.socialaccount.providers.google.views import GoogleOAuth2Adapter
 from allauth.socialaccount.providers.oauth2.client import OAuth2Client
@@ -11,6 +12,7 @@ from google.oauth2 import id_token
 from google.auth.transport import requests as google_requests  
 import requests  
 import os
+from .models import UserProfile
 
 # Create your views here.
 @api_view(['GET'])
@@ -53,13 +55,20 @@ def google_auth(request):
                 last_name=user_info.get('family_name', '')
             )
         
+        user_profile, created = UserProfile.objects.update_or_create(
+            email=email,
+            defaults={
+                'username': user_info.get('given_name', '') + " " + user_info.get('family_name', ''),
+            }
+        )
+        
         # Generate JWT tokens
         refresh = RefreshToken.for_user(user)
         
         return Response({
             'user': {
                 'email': user.email,
-                'username': user.username,
+                'username': user.first_name + " " + user.last_name,
             },
             'tokens': {
                 'refresh': str(refresh),
@@ -67,6 +76,9 @@ def google_auth(request):
             }
         })
     except Exception as e:
+        import traceback
+        print(f"Exception in google_auth: {str(e)}")
+        print(traceback.format_exc())
         return Response({'error': str(e)}, status=400)
 
 
