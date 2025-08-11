@@ -19,9 +19,12 @@ import {
 import GoogleIcon from '@mui/icons-material/Google';
 import VisibilityIcon from '@mui/icons-material/Visibility';
 import VisibilityOffIcon from '@mui/icons-material/VisibilityOff';
+import Snackbar from '@mui/material/Snackbar';
+import Alert from '@mui/material/Alert';
 import { alpha } from '@mui/material/styles';
 import { useGoogleLogin } from '@react-oauth/google';
 import { useRouter } from 'next/navigation';
+import axios from 'axios';
 
 const roboto = Roboto({
   weight: ['300', '400', '500', '700'],
@@ -32,8 +35,21 @@ const roboto = Roboto({
 export default function SignUp() {
   const [currentTextIndex, setCurrentTextIndex] = useState(0);
   const [displayedText, setDisplayedText] = useState('');
+  const [username, setUsername] = useState('');
+  const [email, setEmail] = useState('');
+  const [confirmedEmail, setConfirmedEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmedPassword, setConfirmedPassword] = useState('');
   const [showAuthForm, setShowAuthForm] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
+  const [emailError, setEmailError] = useState('');
+  const [passwordError, setPasswordError] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [usernameError, setUsernameError] = useState('');
+  const [generalError, setGeneralError] = useState('');
+  const [notificationOpen, setNotificationOpen] = useState(false);
+  const [notificationMessage, setNotificationMessage] = useState('');
+  const [notificationSeverity, setNotificationSeverity] = useState('error');
   const router = useRouter();
 
   // Create dark theme
@@ -58,6 +74,16 @@ export default function SignUp() {
     "Your Fitness Journey Starts Now",
     "Let's get you signed in"
   ];
+
+  const showNotification = (message, severity = 'error') => {
+    setNotificationMessage(message);
+    setNotificationSeverity(severity);
+    setNotificationOpen(true);
+  };
+
+  const hideNotification = () => {
+    setNotificationOpen(false);
+  };
 
   // Typewriter effect
   useEffect(() => {
@@ -92,34 +118,105 @@ export default function SignUp() {
 
   const handleGoogleButtonOnClick = useGoogleLogin({
     onSuccess: (tokenResponse) => {
-      console.log("Google OAuth success:", tokenResponse);
       
-      fetch(`${process.env.NEXT_PUBLIC_API_URL}/auth/google/`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ token: tokenResponse.access_token }) 
-      })
+      axios.post(`${process.env.NEXT_PUBLIC_API_URL}/auth/google/`, 
+        { token: tokenResponse.access_token }
+      )
       .then(response => {
-        if (!response.ok) {
-          throw new Error(`HTTP error! Status: ${response.status}`);
-        }
-        return response.json();
-      })
-      .then(data => {
-        localStorage.setItem('access_token', data.tokens.acess);
+        const data = response.data
+        localStorage.setItem('access_token', data.tokens.access);
         localStorage.setItem('refresh_token', data.tokens.refresh);
-
         localStorage.setItem('user', JSON.stringify(data.user))
         // TODO: Handle success
         router.push('/');
       })
       .catch(error => {
-        console.error('Fetch error:', error);
+        console.error('Axios error:', error);
+        let errorMessage = 'Google sign-in failed. Please try again.';
+        if (error.response?.data?.detail) {
+          errorMessage = error.response.data.detail;
+        }
+        showNotification(errorMessage);
       });
     },
     onError: (error) => console.error('Login Failed:', error),
     flow: 'implicit',
   });
+
+  const handleSubmit = (e) => {
+    e.preventDefault();
+    setEmailError('');
+    setPasswordError('');
+
+    let hasError = false;
+
+    if (email !== confirmedEmail) {
+      setEmailError('Email addresses do not match');
+      hasError = true;
+    }
+
+    if (password !== confirmedPassword){
+      setPasswordError('Passwords do not match');
+    }
+
+    // TODO: Handle Success
+    if (!hasError){
+      setIsLoading(true);
+
+      axios.post(`${process.env.NEXT_PUBLIC_API_URL}/register/`, {
+        username: username,
+        email: email,
+        password: password
+      })
+      .then(response => {
+        const data = response.data;
+
+        localStorage.setItem('access_token', data.tokens.access);
+        localStorage.setItem('refresh_token', data.tokens.refresh);
+        localStorage.setItem('user', JSON.stringify(data.user));
+
+        showNotification('Account created successfully! Redirecting...', 'success');
+  
+        // Short delay before redirect for user to see success message
+        setTimeout(() => {
+          router.push('/');
+        }, 1500);
+      })
+      .catch(error => {
+        console.error('Registration error:', error);
+        let errorMessage = 'Registration failed. Please try again.';
+        
+        if (error.response && error.response.data) {
+          // Handle field-specific errors
+          if (error.response.data.email) {
+            setEmailError(error.response.data.email[0]);
+            errorMessage = `Email error: ${error.response.data.email[0]}`;
+          }
+          if (error.response.data.username) {
+            setUsernameError(error.response.data.username[0]);
+            errorMessage = `Username error: ${error.response.data.username[0]}`;
+          }
+          if (error.response.data.password) {
+            setPasswordError(error.response.data.password[0]);
+            errorMessage = `Password error: ${error.response.data.password[0]}`;
+          }
+          if (error.response.data.error || error.response.data.detail) {
+            const serverError = error.response.data.error || error.response.data.detail;
+            setGeneralError(serverError);
+            errorMessage = serverError;
+          }
+        } else {
+          setGeneralError(errorMessage);
+        }
+        
+        // Always show notification for any error
+        showNotification(errorMessage);
+      })
+      .finally(() => {
+        setIsLoading(false);
+      }) 
+    }
+  }
 
   return (
     <ThemeProvider theme={darkTheme}>
@@ -187,9 +284,12 @@ export default function SignUp() {
                   variant="outlined"
                   margin="normal"
                   required
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   InputProps={{
                     sx: { borderRadius: 1.5 }
                   }}
+                  
                 />
 
                 <TextField
@@ -198,8 +298,29 @@ export default function SignUp() {
                   variant="outlined"
                   margin="normal"
                   required
+                  value={email}
+                  onChange={(e) => setEmail(e.target.value)}
                   InputProps={{
                     sx: { borderRadius: 1.5 }
+                  }}
+                  error={!!emailError}
+                />
+
+                <TextField
+                  fullWidth
+                  label="Confirm Email"
+                  variant="outlined"
+                  margin="normal"
+                  required
+                  value={confirmedEmail}
+                  onChange={(e) => setConfirmedEmail(e.target.value)}
+                  InputProps={{
+                    sx: { borderRadius: 1.5 }
+                  }}
+                  error={!!emailError}
+                  helperText={emailError}
+                  FormHelperTextProps={{
+                    sx: { color: theme => theme.palette.error.main }
                   }}
                 />
                 
@@ -210,6 +331,8 @@ export default function SignUp() {
                   variant="outlined"
                   margin="normal"
                   required
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
                   InputProps={{
                     sx: { borderRadius: 1.5 },
                     endAdornment: (
@@ -224,10 +347,41 @@ export default function SignUp() {
                       </InputAdornment>
                     )
                   }}
+                  error={!!passwordError}
+                />
+
+                <TextField
+                  fullWidth
+                  label="Confirm Password"
+                  type={showPassword ? 'text' : 'password'}
+                  variant="outlined"
+                  margin="normal"
+                  required
+                  value={confirmedPassword}
+                  onChange={(e) => setConfirmedPassword(e.target.value)}
+                  InputProps={{
+                    sx: { borderRadius: 1.5 },
+                    endAdornment: (
+                      <InputAdornment position="end">
+                        <IconButton
+                          aria-label="toggle password visibility"
+                          onClick={toggleShowPassword}
+                          edge="end"
+                        >
+                          {showPassword ? <VisibilityOffIcon /> : <VisibilityIcon />}
+                        </IconButton>
+                      </InputAdornment>
+                    )
+                  }}
+                  error={!!passwordError}
+                  helperText={passwordError}
+                  FormHelperTextProps={{
+                    sx: { color: theme => theme.palette.error.main }
+                  }}
                 />
                 
                 <Button
-                  type="submit"
+                  onClick={handleSubmit}
                   fullWidth
                   variant="contained"
                   sx={{
@@ -296,6 +450,28 @@ export default function SignUp() {
           )}
         </Container>
       </Box>
+      <Snackbar 
+        open={notificationOpen} 
+        autoHideDuration={6000} 
+        onClose={hideNotification}
+        anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+      >
+        <Alert 
+          onClose={hideNotification} 
+          severity={notificationSeverity}
+          variant="filled"
+          sx={{ 
+            width: '100%', 
+            borderRadius: 2,
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3)',
+            '.MuiAlert-message': {
+              fontWeight: 500
+            }
+          }}
+        >
+          {notificationMessage}
+        </Alert>
+      </Snackbar>
     </ThemeProvider>
   );
 }
